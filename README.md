@@ -1,7 +1,7 @@
-phpbinarycql
+Php Binary CQL
 ============
 
-Php implementation of the CQL binary protocol.
+Php implementation of the CQL binary protocol.  This project is a client that will allow queries to be sent using the binary protocol.
 
 Things that still need to be completed
 --------------------------------------
