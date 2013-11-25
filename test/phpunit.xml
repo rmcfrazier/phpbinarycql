@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+ 
+<phpunit
+	color="true" 
+	bootstrap="Bootstrap.php">
+	
+	<php>
+		<const name="CASSANDRA_BINARY_CQL_HOST" value="192.168.2.240"/>
+		<const name="CASSANDRA_BINARY_CQL_PORT" value="9042"/>
+	</php>
+
+</phpunit>
