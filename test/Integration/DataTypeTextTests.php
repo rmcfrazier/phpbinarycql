@@ -67,6 +67,7 @@ class DataTypeTextTests extends PHPUnit_Framework_TestCase
 	
 	public function testInsertUtf8()
 	{
+		mb_internal_encoding("UTF-8");
 		$rowKey = md5(array_sum(explode(' ', microtime())));
 		$text = $this->utf8String();
 	
@@ -76,6 +77,7 @@ class DataTypeTextTests extends PHPUnit_Framework_TestCase
 	
 		// select data
 		$result = self::$_pbc->query('select col_text, row_key from '.self::$_tableName.' WHERE row_key='.self::$_pbc->qq($rowKey), \McFrazier\PhpBinaryCql\CqlConstants::QUERY_CONSISTENCY_ONE);
+
 		// check column spec for correct column type
 		// @TODO text column is returning varchar column type... need to find out why !!!
 		//$this->assertEquals(\McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TEXT,$result->getData()->rowMetadata->columnSpec[0]->optionId);
@@ -105,4 +107,5 @@ class DataTypeTextTests extends PHPUnit_Framework_TestCase
 		$txt .= 'του Οδυσσέα Ελύτη';
 		return $txt;
 	}
+
 }

@@ -3,6 +3,11 @@ Php Binary CQL
 
 Php implementation of the CQL binary protocol.  This project is a client that will allow queries to be sent using the binary protocol.
 
+Required PHP Modules (the ones that might not be installed by default)
+--------------------
+iconv
+mbstring
+
 Things that still need to be completed
 --------------------------------------
 - collections (list, map and set)

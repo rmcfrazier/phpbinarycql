@@ -826,14 +826,16 @@ class CqlProtocol
 	 */
 	private function _convertHexToAscii($hexString)
 	{
-		$asciiString = '';
-		for($i=0;$i<strlen($hexString);$i+=2)
-		{
-			//$asciiString .= chr(hexdec(substr($hexString,$i,2)));
-			$int = hexdec(substr($hexString,$i,2));
-			$asciiString .= mb_convert_encoding(pack('n', $int), 'UTF-8', 'UTF-16BE');
-		}
-		return $asciiString;
+// 		$asciiString = '';
+// 		for($i=0;$i<strlen($hexString);$i+=2)
+// 		{
+// 			//$asciiString .= chr(hexdec(substr($hexString,$i,2)));
+// 			$int = hexdec(substr($hexString,$i,2));
+// 			$asciiString .= mb_convert_encoding(pack('n', $int), 'UTF-8', 'UTF-16BE');
+// 		}
+// 		return $asciiString;
+		
+		return utf8_decode(pack('H*',$hexString));
 	}
 	
 	/**
@@ -909,8 +911,8 @@ class CqlProtocol
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_ASCII:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_VARCHAR:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TEXT:
-				$hexColumnValue = $this->parseBytes($frameBody);
-				$columnValue = $this->_convertHexToAscii($hexColumnValue);
+				$binColumnValue = $this->parseBytes($frameBody, true);
+				$columnValue = iconv(mb_detect_encoding($binColumnValue, mb_detect_order(), true), "UTF-8", $binColumnValue);
 				break;
 					
 				// this will return the bytes in binary format
