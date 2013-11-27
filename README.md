@@ -5,7 +5,6 @@ Php implementation of the CQL binary protocol.  This project is a client that wi
 
 Things that still need to be completed
 --------------------------------------
-- compression (snappy)
 - collections (list, map and set)
 - prepared queries
 
