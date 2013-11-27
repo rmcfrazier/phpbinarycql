@@ -623,11 +623,6 @@ class CqlProtocol
 		// get ipaddress
 		$hexColumnValue = $this->parseBytes($frameBody);
 		
-		// get port
-		// @TODO have to figure out how to tell if a port
-		// is present for the ipaddress getting an error now !!!
-		//$port = $this->parseInt($frameBody);
-		
 		$ipParts = array();
 		if(strlen($hexColumnValue) == 8) {
 			$ipParts[] = hexdec(substr($hexColumnValue,0,2));
