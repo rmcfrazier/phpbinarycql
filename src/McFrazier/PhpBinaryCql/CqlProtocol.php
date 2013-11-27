@@ -79,26 +79,31 @@ class CqlProtocol
 	 */
 	public function generateBinaryFrame($frame)
 	{
+		// get flag status
+		$flagStatus = $this->_checkFrameFlags($frame->getFlag());
+		
 		// binary body length
 		$frameBody = $frame->getBody();
 		
-		$bodyLength = strlen($frameBody);
-		$frameBodyLength = $this->generateInt($bodyLength);
+		$frameBodyLength = NULL;
+		// @TODO need to add a check to check which compression was used
+		// in the frame, can't assume snappy.
+		if($flagStatus->compression) {
+			// compressed
+			$frameBody = snappy_compress($frameBody);
+			$bodyLength = strlen($frameBody);
+			$frameBodyLength = $this->generateInt($bodyLength);
+		} else {
+			// not compressed
+			$bodyLength = strlen($frameBody);
+			$frameBodyLength = $this->generateInt($bodyLength);
+		}
 		
 		// build frame header
 		$header =  pack("hhhh", $frame->getVersion(), $frame->getFlag(), $frame->getStream(), $frame->getOpcode());
 		$header .= $frameBodyLength;
 		
-		// check frame flags
-		// @TODO need to add a check to check which compression was used
-		// in the frame, can't assume snappy.
-		$flagStatus = $this->_checkFrameFlags($frame->getFlag());
-		if($flagStatus->compression) {
-			$frameBody = snappy_compress($frameBody);
-		}
-
 		return $header.$frameBody;
-		
 	}
 	
 	/**
@@ -869,7 +874,7 @@ class CqlProtocol
 		 
 		// converted decimal value:
 		$dec = hexdec($hexString);
-var_dump($dec);		 
+	 
 		// maximum decimal value based on length of hex + 1:
 		//   number of bits in hex number is 8 bits for each 2 hex -> max = 2^n
 		//   use 'pow(2,n)' since '1 << n' is only for integers and therefore limited to integer size.
