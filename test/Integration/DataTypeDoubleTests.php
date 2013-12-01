@@ -1,5 +1,5 @@
 <?php
-class DataTypeIntTests extends PHPUnit_Framework_TestCase
+class DataTypeDoubleTests extends PHPUnit_Framework_TestCase
 {
 	protected static $_keyspaceName = NULL;
 	protected static $_tableName = NULL;
@@ -49,10 +49,13 @@ class DataTypeIntTests extends PHPUnit_Framework_TestCase
 		self::$_pbc->query('DROP KEYSPACE '.self::$_keyspaceName, \McFrazier\PhpBinaryCql\CqlConstants::QUERY_CONSISTENCY_ONE);
 	}
 	
-	public function testMaxInteger()
+	public function testBigPieceOfPi()
 	{
 		$rowKey = md5(array_sum(explode(' ', microtime())));
-		$double = 3.1415926535897932384626433832795; //
+		$double = '3.1415926535897932384626433832795'; //
+		//$double = '3.141592653589793238462';
+		//$double = '111111113.14159265555';
+		//$double = '3.141592653589793';
 	
 		// insert data
 		$result = self::$_pbc->query('INSERT INTO '.self::$_tableName. '(row_key, col_double) VALUES ('.self::$_pbc->qq($rowKey).','.$double.');', \McFrazier\PhpBinaryCql\CqlConstants::QUERY_CONSISTENCY_ONE);
@@ -65,8 +68,8 @@ class DataTypeIntTests extends PHPUnit_Framework_TestCase
 		$this->assertEquals(\McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_DOUBLE,$result->getData()->rowMetadata->columnSpec[0]->optionId);
 	
 		// check column data
-		$this->assertTrue(is_float($result->getData()->rowsContent[0]->col_double));
-		//$this->assertEquals($double,$result->getData()->rowsContent[0]->col_double);
+		//@TODO doubles are tricky need to see if what I implemented is the right way to do this...
+		$this->assertTrue(is_string($result->getData()->rowsContent[0]->col_double));
+		$this->assertEquals($double,$result->getData()->rowsContent[0]->col_double);
 	}
 }
-

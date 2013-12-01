@@ -105,6 +105,9 @@ class CqlClient
 		// lets register a shutdown to help when trying to debug
 		register_shutdown_function(array($this, 'shutdown'));
 		
+		// setting php percision a little higher
+		ini_set('precision', 17);
+		
 	}
 	
 	/**
@@ -268,6 +271,11 @@ class CqlClient
 		// send the frame
 		$this->_sendFrame($reqFrame);
 		
+		// look for errors on send
+// 		if($this->_sendFrame($reqFrame) === FALSE) {
+// 			exit('trouble sending frame.');
+// 		}
+		
 		// return a response object
 		return new \McFrazier\PhpBinaryCql\CqlResponse($this->_receiveFrame(), $this->_protocol);
 	}
@@ -418,7 +426,7 @@ class CqlClient
 		stream_set_write_buffer($this->_resourceHandle ,0);
 	
 		// @TODO add error checks
-		fwrite($this->_resourceHandle, $binaryData);
+		return fwrite($this->_resourceHandle, $binaryData);
 	}
 	
 	/**
@@ -478,7 +486,7 @@ class CqlClient
 			$this->_captureFrame($frame, $this->_captureFrameDir);
 		}
 		
-		$this->_socketWrite($this->_protocol->generateBinaryFrame($frame));
+		return $this->_socketWrite($this->_protocol->generateBinaryFrame($frame));
 	}
 	
 	/**

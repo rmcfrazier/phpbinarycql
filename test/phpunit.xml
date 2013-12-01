@@ -8,5 +8,22 @@
 		<const name="CASSANDRA_BINARY_CQL_HOST" value="192.168.2.240"/>
 		<const name="CASSANDRA_BINARY_CQL_PORT" value="9042"/>
 	</php>
+	
+	<testsuites>
+	  <testsuite name="allTests">
+	  	<file>./Integration/DataTypeBigintTests.php</file>
+	  	<file>./Integration/DataTypeIntTests.php</file>
+	  	<file>./Integration/DataTypeDoubleTests.php</file>
+	  	<file>./Integration/DataTypeFloatTests.php</file>
+	  	<file>./Integration/DataTypeInetTests.php</file>
+	  	<file>./Integration/DataTypeIntTests.php</file>
+	  	<file>./Integration/DataTypeTextTests.php</file>
+	  	<file>./Integration/DataTypeTimeuuidTests.php</file>
+	  	<file>./Integration/DataTypeUuidTests.php</file>
+	  	<file>./Integration/DataTypeListTests.php</file>
+	  	<file>./Integration/DataTypeSetTests.php</file>
+	  	<file>./Integration/DataTypeMapTests.php</file>
+	  </testsuite>
+	</testsuites>
 
 </phpunit>

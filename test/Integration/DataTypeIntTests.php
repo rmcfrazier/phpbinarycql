@@ -52,7 +52,7 @@ class DataTypeIntTests extends PHPUnit_Framework_TestCase
 	public function testMaxInteger()
 	{
 		$rowKey = md5(array_sum(explode(' ', microtime())));
-		$maxInt = 2147483647; // 214783647 maximum 32 bit signed int
+		$maxInt = '2147483647'; // 214783647 maximum 32 bit signed int
 	
 		// insert data
 		$result = self::$_pbc->query('INSERT INTO '.self::$_tableName. '(row_key, col_int) VALUES ('.self::$_pbc->qq($rowKey).','.$maxInt.');', \McFrazier\PhpBinaryCql\CqlConstants::QUERY_CONSISTENCY_ONE);
@@ -65,14 +65,14 @@ class DataTypeIntTests extends PHPUnit_Framework_TestCase
 		$this->assertEquals(\McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_INT,$result->getData()->rowMetadata->columnSpec[0]->optionId);
 	
 		// check column data
-		$this->assertTrue(is_int($result->getData()->rowsContent[0]->col_int));
+		$this->assertTrue(is_string($result->getData()->rowsContent[0]->col_int));
 		$this->assertEquals($maxInt,$result->getData()->rowsContent[0]->col_int);
 	}
 	
 	public function testMinInteger()
 	{
 		$rowKey = md5(array_sum(explode(' ', microtime())));
-		$minInt = -2147483648; // -2147483648 minimum 32 bit signed int
+		$minInt = '-2147483648'; // -2147483648 minimum 32 bit signed int
 	
 		// insert data
 		$result = self::$_pbc->query('INSERT INTO '.self::$_tableName. '(row_key, col_int) VALUES ('.self::$_pbc->qq($rowKey).','.$minInt.');', \McFrazier\PhpBinaryCql\CqlConstants::QUERY_CONSISTENCY_ONE);
@@ -85,7 +85,7 @@ class DataTypeIntTests extends PHPUnit_Framework_TestCase
 		$this->assertEquals(\McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_INT,$result->getData()->rowMetadata->columnSpec[0]->optionId);
 	
 		// check column data
-		$this->assertTrue(is_int($result->getData()->rowsContent[0]->col_int));
+		$this->assertTrue(is_string($result->getData()->rowsContent[0]->col_int));
 		$this->assertEquals($minInt,$result->getData()->rowsContent[0]->col_int);
 	}
 	

@@ -687,8 +687,8 @@ class CqlProtocol
 		$short = $this->parseShort($frameBody);
 
 		// get string hex values
-		$hexString = bin2hex(substr($frameBody, $this->_offset, $short));
-		$string = $this->_convertHexToAscii($hexString);
+		$binString = substr($frameBody, $this->_offset, $short);
+		$string = $this->_convertBinToUTF8($binString);
 		
 		// add length of string to internal offset
 		$this->_offset += $short;
@@ -757,23 +757,23 @@ class CqlProtocol
 	 * @param string $frameBody
 	 * @return string
 	 */
-	public function parseUuid($frameBody)
-	{
-		$int = $this->parseInt($frameBody);
-		$binString = substr($frameBody, $this->_offset, $int);
-		$this->_offset += $int;
-		$hexString = bin2hex($binString);
+// 	public function parseUuid($frameBody)
+// 	{
+// 		$int = $this->parseInt($frameBody);
+// 		$binString = substr($frameBody, $this->_offset, $int);
+// 		$this->_offset += $int;
+// 		$hexString = bin2hex($binString);
 
-		$uuidParts = array();
+// 		$uuidParts = array();
 		
-		$uuidParts[] = substr($hexString,0,8);
-		$uuidParts[] = substr($hexString,8,4);
-		$uuidParts[] = substr($hexString,12,4);
-		$uuidParts[] = substr($hexString,16,4);
-		$uuidParts[] = substr($hexString,20,12);
+// 		$uuidParts[] = substr($hexString,0,8);
+// 		$uuidParts[] = substr($hexString,8,4);
+// 		$uuidParts[] = substr($hexString,12,4);
+// 		$uuidParts[] = substr($hexString,16,4);
+// 		$uuidParts[] = substr($hexString,20,12);
 		
-		return implode('-',$uuidParts);
-	}
+// 		return implode('-',$uuidParts);
+// 	}
 	
 	/**
 	 * Reset the byte counters.
@@ -819,18 +819,9 @@ class CqlProtocol
 	 * @param string $hexString
 	 * @return string
 	 */
-	private function _convertHexToAscii($hexString)
+	private function _convertBinToUTF8($binString)
 	{
-// 		$asciiString = '';
-// 		for($i=0;$i<strlen($hexString);$i+=2)
-// 		{
-// 			//$asciiString .= chr(hexdec(substr($hexString,$i,2)));
-// 			$int = hexdec(substr($hexString,$i,2));
-// 			$asciiString .= mb_convert_encoding(pack('n', $int), 'UTF-8', 'UTF-16BE');
-// 		}
-// 		return $asciiString;
-		
-		return utf8_decode(pack('H*',$hexString));
+		return iconv(mb_detect_encoding($binString, mb_detect_order(), true), "UTF-8", $binString);
 	}
 	
 	/**
@@ -858,30 +849,25 @@ class CqlProtocol
 	 */
 	private function _convertHexTo32Float($hexString)
 	{
-		$v = hexdec($strHex);
+		$v = hexdec($hexString);
 		$x = ($v & ((1 << 23) - 1)) + (1 << 23) * ($v >> 31 | 1);
 		$exp = ($v >> 23 & 0xFF) - 127;
-		return (string)$x * pow(2, $exp - 23);
+		//return (string)$x * pow(2, $exp - 23);
+		return bcmul($x, bcpow(.5, abs($exp - 23),50),7);
 	}
 	
-	private function _convertHexToSignedInteger($hexString)
+	/**
+	 * Convert a hex to a IEEE 754 64bit Double.
+	 *
+	 * @param string $hexString
+	 * @return string
+	 */
+	private function _convertHexTo64Float($hexString)
 	{
-		// ignore non hex characters
-		//$hex = preg_replace('/[^0-9A-Fa-f]/', '', $hex);
-		 
-		// converted decimal value:
-		$dec = hexdec($hexString);
-	 
-		// maximum decimal value based on length of hex + 1:
-		//   number of bits in hex number is 8 bits for each 2 hex -> max = 2^n
-		//   use 'pow(2,n)' since '1 << n' is only for integers and therefore limited to integer size.
-		$max = pow(2, 4 * (strlen($hexString) + (strlen($hexString) % 2)));
-		 
-		// complement = maximum - converted hex:
-		$_dec = $max - $dec;
-		 
-		// if dec value is larger than its complement we have a negative value (first bit is set)
-		return (string)$dec > $_dec ? -$_dec : $dec;
+		$v = hexdec($hexString);
+		$x = (integer)($v & ((1 << 52) - 1)) + (1 << 52) * ($v >> 63 | 1);
+		$exp = ($v >> 52 & 0x7FF) - 1023;
+		return bcmul($x, bcpow(.5, abs($exp - 52),50),16);
 	}
 	
 	/**
@@ -890,9 +876,10 @@ class CqlProtocol
 	 * @param string $frameBody
 	 * @param integer $optionId
 	 * @param integer | stdClass $optionValue
+	 * @param boolean $parseCollection
 	 * @return string
 	 */
-	private function _parseBytesByColumnType($frameBody, $optionId, $optionValue)
+	private function _parseBytesByColumnType($frameBody, $optionId, $optionValue, $parseCollection = FALSE)
 	{
 		$columnValue = NULL;
 		switch($optionId)
@@ -900,24 +887,39 @@ class CqlProtocol
 			// all of the following will be returned as strings and the caller will
 			// have to cast to to correct type...
 				
-			// ascii
 			// @TODO look at this to make sure it handle UTF-8 correctly
 			// will have to create some tests to check this
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_ASCII:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_VARCHAR:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TEXT:
-				$binColumnValue = $this->parseBytes($frameBody, true);
-				$columnValue = iconv(mb_detect_encoding($binColumnValue, mb_detect_order(), true), "UTF-8", $binColumnValue);
+				$binString = NULL;
+				if($parseCollection) {
+					$binString = $this->parseShortBytes($frameBody, TRUE);
+				} else {
+					$binString = $this->parseBytes($frameBody, TRUE);
+				}
+				$columnValue = $this->_convertBinToUTF8($binString);
 				break;
 					
 				// this will return the bytes in binary format
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_BLOB:
-				$columnValue = $this->parseBytes($frameBody, TRUE);
+				$columnValue = NULL;
+				if($parseCollection) {
+					$columnValue = $this->parseShortBytes($frameBody, TRUE);
+				} else {
+					$columnValue = $this->parseBytes($frameBody, TRUE);
+				}
 				break;
 		
 				// this will return a PHP Boolean tpye
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_BOOLEAN:
-				$hexColumnValue = $this->parseBytes($frameBody);
+				$hexColumnValue = NULL;
+				if($parseCollection) {
+					$hexColumnValue = $this->parseShortBytes($frameBody);
+				} else {
+					$hexColumnValue = $this->parseBytes($frameBody);
+				}
+				
 				if($hexColumnValue == 01) {
 					$columnValue = TRUE;
 				} else {
@@ -928,7 +930,26 @@ class CqlProtocol
 				// UUID
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_UUID:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TIMEUUID:
-				$columnValue = $this->parseUuid($frameBody);
+				$int = NULL;
+				if($parseCollection) {
+					$int = $this->parseShort($frameBody);
+				} else {
+					$int = $this->parseInt($frameBody);
+				}
+				
+				$binString = substr($frameBody, $this->_offset, $int);
+				$this->_offset += $int;
+				$hexString = bin2hex($binString);
+				
+				$uuidParts = array();
+				
+				$uuidParts[] = substr($hexString,0,8);
+				$uuidParts[] = substr($hexString,8,4);
+				$uuidParts[] = substr($hexString,12,4);
+				$uuidParts[] = substr($hexString,16,4);
+				$uuidParts[] = substr($hexString,20,12);
+				
+				return implode('-',$uuidParts);
 				break;
 		
 				// ints
@@ -937,35 +958,108 @@ class CqlProtocol
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_VARINT:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TIMESTAMP:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_INT:
-				$hexColumnValue = $this->parseBytes($frameBody);
-				$msb = (integer)substr($hexColumnValue, 0,1);
-				$columnValue = number_format((integer)hexdec($hexColumnValue), 0, '', '');
-
-				// yes, overkill, but I want these to be correct.
-				if($msb > 7) {
-					$columnValue = -abs($columnValue);
+				$hexString = NULL;
+				if($parseCollection) {
+					$hexString = $this->parseShortBytes($frameBody);
 				} else {
-					$columnValue = abs($columnValue);
+					$hexString = $this->parseBytes($frameBody);
+				}
+				
+				// is this a negative integer
+				$isNegative = FALSE;
+				if((integer)hexdec(substr($hexString, 0,1)) > 7) {
+					$isNegative = TRUE;
+				}
+				
+				// check for the most negative integer, PHP cannot handle this
+				// without using a module
+				$mostNegativeInteger = FALSE;
+				if($hexString === '8000000000000000') {
+					$mostNegativeInteger = TRUE;
+				}
+				
+				// check for the most positive integer, PHP cannot handle this
+				// without using a module
+				$mostPositiveInteger = FALSE;
+				if($hexString === '7fffffffffffffff') {
+					$mostPositiveInteger = TRUE;
+				}
+				
+				if($mostNegativeInteger) {
+					$columnValue = '-9223372036854775808';
+				} elseif ($mostPositiveInteger) {
+					$columnValue = '9223372036854775807';
+				} else {
+					$columnValue = (string)abs(number_format((integer)hexdec($hexString), 0, '', ''));
+					if($isNegative) {
+						$columnValue = '-'.$columnValue;
+					}
 				}
 				break;
 				
 				// real numbers
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_DOUBLE:
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_DECIMAL:
-				$binColumnValue = $this->parseBytes($frameBody, TRUE);
-				$columnValue = unpack("d", $binColumnValue); // unpack returns an array
-				$columnValue = $columnValue[1];
+				$hexString = NULL;
+				if($parseCollection) {
+					$hexString = $this->parseShortBytes($frameBody);
+				} else {
+					$hexString = $this->parseBytes($frameBody);
+				}
+				//echo "TTTT";
+		//var_dump($hexString);
+				//$columnValue = unpack("d", $hexString); // unpack returns an array
+				//$columnValue = (string)$columnValue[1];
+				
+				$columnValue = (string)$this->_convertHexTo64Float($hexString);
 				break;
 				
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_FLOAT:
-				$binColumnValue = $this->parseBytes($frameBody, TRUE);
-				$columnValue = unpack("f", $binColumnValue); // unpack returns an array
-				$columnValue = $columnValue[1];
+				$binString = NULL;
+				if($parseCollection) {
+					$binString = $this->parseShortBytes($frameBody, TRUE);
+				} else {
+					$binString = $this->parseBytes($frameBody, TRUE);
+				}
+				
+				//$columnValue = unpack("f", $binString); // unpack returns an array
+				//$columnValue = $columnValue[1];
+				
+				$columnValue = (string)$this->_convertHexTo32Float(bin2hex($binString));
 				break;
 		
 				// inet
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_INET:
-				$columnValue = $this->parseInet($frameBody);
+				$columnValue = NULL;
+				
+				// get ipaddress
+				$hexColumnValue = NULL;
+				if($parseCollection) {
+					$hexColumnValue = $this->parseShortBytes($frameBody);
+				} else {
+					$hexColumnValue = $this->parseBytes($frameBody);
+				}
+				
+				$ipParts = array();
+				if(strlen($hexColumnValue) == 8) {
+					$ipParts[] = hexdec(substr($hexColumnValue,0,2));
+					$ipParts[] = hexdec(substr($hexColumnValue,2,2));
+					$ipParts[] = hexdec(substr($hexColumnValue,4,2));
+					$ipParts[] = hexdec(substr($hexColumnValue,6,2));
+					$columnValue = implode('.',$ipParts);
+				} else {
+					$ipParts[] = substr($hexColumnValue,0,4);
+					$ipParts[] = substr($hexColumnValue,4,4);
+					$ipParts[] = substr($hexColumnValue,8,4);
+					$ipParts[] = substr($hexColumnValue,12,4);
+					$ipParts[] = substr($hexColumnValue,16,4);
+					$ipParts[] = substr($hexColumnValue,20,4);
+					$ipParts[] = substr($hexColumnValue,24,4);
+					$ipParts[] = substr($hexColumnValue,28,4);
+					$columnValue = implode(':',$ipParts);
+				}
+				
+				return $columnValue;
 				break;
 		
 				// Collection: LIST and SET
@@ -975,97 +1069,23 @@ class CqlProtocol
 				$short = $this->parseShort($frameBody); // count in list
 				for($x = 0; $x < $short; $x++)
 				{
-					$columnValue[] = $this->_parseShortBytesByColumnType($frameBody, $optionValue, NULL);
+					$columnValue[] = $this->_parseBytesByColumnType($frameBody, $optionValue, NULL, TRUE);
 				}
 				break;
 				
 				// Collection: MAP
 			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_MAP:
-				$int = $this->parseInt($frameBody); // list column type not for sure why it is here again, but anyway...
+				$int = $this->parseInt($frameBody); // map column type not for sure why it is here again, but anyway...
 				$short = $this->parseShort($frameBody); // size of map
 				for($x = 0; $x < $short; $x++)
 				{
-					$key = $this->_parseShortBytesByColumnType($frameBody, $optionValue->keyType, NULL);
-					$val = $this->_parseShortBytesByColumnType($frameBody, $optionValue->valueType, NULL);
+					$key = $this->_parseBytesByColumnType($frameBody, $optionValue->keyType, NULL, TRUE);
+					$val = $this->_parseBytesByColumnType($frameBody, $optionValue->valueType, NULL, TRUE);
 					$columnValue[$key] = $val;
 				}
 				break;
 		}
 		
-		return $columnValue;
-	}
-	
-	/**
-	 * Parse column value short bytes.
-	 * 
-	 * @param string $frameBody
-	 * @param integer $optionId
-	 * @param integer | stdClass $optionValue
-	 * @return string
-	 */
-	private function _parseShortBytesByColumnType($frameBody, $optionId, $optionValue)
-	{
-		$columnValue = NULL;
-		switch($optionId)
-		{
-			// all of the following will be returned as strings and the caller will
-			// have to cast to to correct type...
-	
-			// ascii
-			// @TODO look at this to make sure it handle UTF-8 correctly
-			// will have to create some tests to check this
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_ASCII:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_VARCHAR:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TEXT:
-				$hexColumnValue = $this->parseShortBytes($frameBody);
-				$columnValue = $this->_convertHexToAscii($hexColumnValue);
-				break;
-					
-				// this will return the bytes in binary format
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_BLOB:
-				$columnValue = $this->parseShortBytes($frameBody, TRUE);
-				break;
-	
-				// this will return a PHP Boolean tpye
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_BOOLEAN:
-				$hexColumnValue = $this->parseBytes($frameBody);
-				if($hexColumnValue == 01) {
-					$columnValue = TRUE;
-				} else {
-					$columnValue = FALSE;
-				}
-				break;
-	
-				// UUID
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_UUID:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TIMEUUID:
-				$columnValue = $this->parseUuid($frameBody);
-				break;
-	
-				// ints
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_COUNTER:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_BIGINT:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_DOUBLE:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_INT:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_VARINT:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_TIMESTAMP:
-				$hexColumnValue = $this->parseShortBytes($frameBody);
-				$columnValue = number_format(hexdec($hexColumnValue), 0, '', '');
-				break;
-	
-				// floats
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_DECIMAL:
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_FLOAT:
-				$hexColumnValue = $this->parseShortBytes($frameBody);
-				$columnValue = $this->_convertHexTo32Float($hexString);
-				break;
-	
-				// inet
-			case \McFrazier\PhpBinaryCql\CqlConstants::COLUMN_TYPE_OPTION_INET:
-				$columnValue = $this->parseInet($frameBody);
-				break;
-		}
-	
 		return $columnValue;
 	}
 }
