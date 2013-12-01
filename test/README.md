@@ -14,10 +14,13 @@ Need to have PHPUnit installed
 - version 3.7.28
 
 Configure the phpunit.xml to point to your running Cassandra instance
+
+```xml
 <php>
 	<const name="CASSANDRA_BINARY_CQL_HOST" value="192.168.2.240"/>
 	<const name="CASSANDRA_BINARY_CQL_PORT" value="9042"/>
 </php>
+```
 
 Running the tests
 -----------------
